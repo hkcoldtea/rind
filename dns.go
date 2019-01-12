@@ -97,10 +97,17 @@ func (s *DNSService) Query(p Packet) {
 
 	if ok {
 		p.message.Answers = append(p.message.Answers, val...)
+		p.message.Response = true
 		go sendPacket(s.conn, p.message, p.addr)
 	} else {
 		// forwarding
 		for i := 0; i < len(s.forwarders); i++ {
+			fwdIP := net.ParseIP(s.forwarders[i].IP.String())
+			if fwdIP == nil {
+				p.message.Response = true
+				go sendPacket(s.conn, p.message, p.addr)
+				break
+			}
 			s.memo.set(pString(p), p.addr)
 			go sendPacket(s.conn, p.message, s.forwarders[i])
 		}
@@ -219,7 +226,7 @@ func toResource(req request) (dnsmessage.Resource, error) {
 		if err != nil {
 			return none, err
 		}
-		rBody = &dnsmessage.SOAResource{NS: soaNS, MBox: soaMBox, Serial: soa.Serial, Refresh: soa.Refresh, Retry: soa.Retry, Expire: soa.Expire}
+		rBody = &dnsmessage.SOAResource{NS: soaNS, MBox: soaMBox, Serial: soa.Serial, Refresh: soa.Refresh, Retry: soa.Retry, Expire: soa.Expire, MinTTL: soa.MinTTL}
 	case "PTR":
 		rType = dnsmessage.TypePTR
 		ptr, err := dnsmessage.NewName(req.Data)
